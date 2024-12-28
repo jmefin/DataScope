@@ -255,15 +255,19 @@ if st.session_state.imported_data:
                     ))
 
         # Add limit lines and target areas if they exist
-        if limit_values:
+        if limit_values and len(fig.data) > 0:  # Tarkista että dataa on olemassa
             for metric in metrics_to_process:
                 if metric in limit_values:
                     limits = limit_values[metric]
                     yaxis = "y2" if metric == secondary_metric else "y"
                     
+                    # Käytä aikaleimoja ensimmäisestä datasarjasta
+                    start_time = fig.data[0].x[0]
+                    end_time = fig.data[0].x[-1]
+                    
                     if limits['show_target_area']:
                         fig.add_trace(go.Scatter(
-                            x=[fig.data[0].x[0], fig.data[0].x[-1]],
+                            x=[start_time, end_time],
                             y=[limits['target_high'], limits['target_high']],
                             fill=None,
                             mode='lines',
