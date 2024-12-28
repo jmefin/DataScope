@@ -6,3 +6,5 @@ This repository includes three example CSV files, which are sample data files do
 
 About Loopshore's Solution
 The example files are sourced from Loopshore's Air Quality Monitoring solution. Loopshore provides IoT-based monitoring systems that measure indoor air quality and other environmental parameters, offering actionable insights for healthier living spaces.
+
+You can try the application here: https://loopdatascope.streamlit.app/
