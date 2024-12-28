@@ -202,7 +202,7 @@ if st.session_state.imported_data:
     plot_height = st.sidebar.slider(
         'Plot height',
         min_value=300,
-        max_value=3000,
+        max_value=1200,
         value=400,
         step=50
     )
