@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import ollama
 import tempfile
 import base64
 import os
@@ -356,30 +355,3 @@ if st.session_state.imported_data:
                 st.write(f"Statistics for {file_name}:")
                 metrics_to_show = metrics_to_process
                 st.dataframe(st.session_state.imported_data[file_name][metrics_to_show].describe())
-
-        # AI Analysis
-        st.subheader("AI-Powered Analysis")
-        if st.button("Run AI Analysis"):
-            with st.spinner("Analyzing the data, please wait..."):
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
-                    fig.write_image(tmpfile.name)
-                    tmpfile_path = tmpfile.name
-
-                with open(tmpfile_path, "rb") as image_file:
-                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
-
-                messages = [{
-                    'role': 'user',
-                    'content': f"""You are a Data Analyst specializing in sensor data analysis.
-                                Analyze the following metrics: {', '.join(metrics_to_process)} from {len(selected_files)} different data sources.
-                                Compare the data between different sources, look for patterns, anomalies, and correlations.
-                                Provide a detailed analysis of the trends and any notable observations or differences between the data sources.
-                    """,
-                    'images': [image_data]
-                }]
-                response = ollama.chat(model='llama3.2-vision', messages=messages)
-
-                st.write("**AI Analysis Results:**")
-                st.write(response["message"]["content"])
-
-                os.unlink(tmpfile_path)
