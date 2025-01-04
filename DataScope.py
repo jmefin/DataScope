@@ -85,7 +85,7 @@ st.set_page_config(layout="wide")
 st.title("DataScope")
 st.sidebar.header("Configuration")
 
-# Add expandable Readme section
+# Add expandable Readme section and version info
 with st.sidebar.expander("Readme"):
     st.markdown("# DataScope")
     st.markdown("DataScope is a data visualization tool designed for environmental monitoring data. The application allows you to:")
@@ -98,15 +98,13 @@ with st.sidebar.expander("Readme"):
     st.markdown("- Create heatmap visualizations for temporal patterns")
     st.markdown("- Calculate and visualize differences between datasets")
     
-    st.markdown("\nBelow you can dowload excample CSV files:")
+    st.markdown("\nDownload the example CSV files below to your computer. When you upload the files to this application, please note that the upload and processing may take a moment.")
     
     st.markdown("### Example CSV Files")
     st.markdown("- [Henhouse](https://github.com/jmefin/DataScope/blob/main/20241228_30d_Henhouse.csv)")
     st.markdown("- [Basement](https://github.com/jmefin/DataScope/blob/main/20241228_30d_Basement.csv)")
 
-# Add version info
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Version:** 0.0.2")
+    st.markdown("**DataScope version:** 0.0.3")
 
 # Initialize database and analysis managers in session state
 if 'db_manager' not in st.session_state:
@@ -149,6 +147,8 @@ if st.session_state.uploaded_files:
       sorted([metric for metric in all_metrics if metric not in PRIORITY_METRICS])
   )
   
+  st.sidebar.markdown("---")
+
   # Sidebar: Select metrics to plot
   st.sidebar.subheader("Metrics Selection") 
   primary_metrics = st.sidebar.multiselect(
@@ -176,6 +176,8 @@ if st.session_state.uploaded_files:
           st.sidebar.warning("No available metrics for secondary axis")
           use_secondary_axis = False
 
+  st.sidebar.markdown("---")
+
   # Option to show difference plot
   st.sidebar.subheader("Difference Plot")
   show_differences = st.sidebar.checkbox(
@@ -197,6 +199,8 @@ if st.session_state.uploaded_files:
           index=0
       )
 
+  st.sidebar.markdown("---")
+
   # Limit values setup
   limit_values = {}
   metrics_to_process = primary_metrics.copy()
@@ -206,6 +210,8 @@ if st.session_state.uploaded_files:
   for metric in metrics_to_process:
       if metric in DEFAULT_LIMITS:
           limit_values[metric] = setup_limit_values(metric, DEFAULT_LIMITS[metric], "main")
+
+  st.sidebar.markdown("---")
 
   # Plot settings
   st.sidebar.subheader("Plot Settings")
@@ -217,7 +223,9 @@ if st.session_state.uploaded_files:
       step=50,
       key="plot_height_main"
   )
-  
+
+  st.sidebar.markdown("---")
+
   # Select data sources  
   st.sidebar.subheader("Select Data Sources")
   selected_files = st.sidebar.multiselect(
@@ -226,6 +234,8 @@ if st.session_state.uploaded_files:
       default=list(st.session_state.uploaded_files.keys()),
       key="selected_files_main"
   )
+
+  st.sidebar.markdown("---")
 
   # Get selected dataset IDs
   selected_dataset_ids = [st.session_state.uploaded_files[file] for file in selected_files]
