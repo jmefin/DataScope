@@ -85,6 +85,25 @@ st.set_page_config(layout="wide")
 st.title("DataScope")
 st.sidebar.header("Configuration")
 
+# Add expandable Readme section
+with st.sidebar.expander("Readme"):
+    st.markdown("# DataScope")
+    st.markdown("DataScope is a data visualization tool designed for environmental monitoring data. The application allows you to:")
+    
+    st.markdown("- Upload and analyze multiple CSV files simultaneously")
+    st.markdown("- Visualize different metrics (temperature, CO2, humidity, PM2.5, TVOC etc.)")
+    st.markdown("- Compare data between different locations")
+    st.markdown("- Set custom target ranges and alert limits for monitored parameters")
+    st.markdown("- Generate statistical analysis with basic and advanced options")
+    st.markdown("- Create heatmap visualizations for temporal patterns")
+    st.markdown("- Calculate and visualize differences between datasets")
+    
+    st.markdown("\nBelow you can dowload excample CSV files:")
+    
+    st.markdown("### Example CSV Files")
+    st.markdown("- [Henhouse](https://github.com/jmefin/DataScope/blob/main/20241228_30d_Henhouse.csv)")
+    st.markdown("- [Basement](https://github.com/jmefin/DataScope/blob/main/20241228_30d_Basement.csv)")
+
 # Add version info
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Version:** 0.0.1")
