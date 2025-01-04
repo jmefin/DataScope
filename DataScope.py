@@ -430,20 +430,22 @@ if st.session_state.uploaded_files:
                   comparison_data = comparison_data.groupby('hour')[numeric_columns].mean().reset_index()
                   comparison_data = comparison_data.rename(columns={'hour': 'timestamp'})
                   
-                  common_timestamps = pd.Index(
-                      reference_data['timestamp'].unique()
-                  ).intersection(pd.Index(comparison_data['timestamp'].unique()))
+                  # Create merged dataframe with nearest timestamp matching
+                  merged = pd.merge_asof(
+                      reference_data.sort_values('timestamp'),
+                      comparison_data.sort_values('timestamp'),
+                      on='timestamp',
+                      direction='nearest',
+                      tolerance=pd.Timedelta('5min')
+                  )
                   
-                  if len(common_timestamps) > 0:
-                      ref_data_aligned = reference_data[reference_data['timestamp'].isin(common_timestamps)]
-                      comp_data_aligned = comparison_data[comparison_data['timestamp'].isin(common_timestamps)]
-                      
+                  if len(merged) > 0:
                       for metric in difference_metrics:
-                          if metric in ref_data_aligned.columns and metric in comp_data_aligned.columns:
-                              difference = comp_data_aligned[metric].values - ref_data_aligned[metric].values
+                          if f"{metric}_x" in merged.columns and f"{metric}_y" in merged.columns:
+                              difference = merged[f"{metric}_y"] - merged[f"{metric}_x"]
                               if len(difference) > 0:
                                   fig_diff.add_trace(go.Scatter(
-                                      x=ref_data_aligned['timestamp'],
+                                      x=merged['timestamp'],
                                       y=difference,
                                       mode='lines',
                                       name=f"{file_name} - {metric} diff",
@@ -452,8 +454,9 @@ if st.session_state.uploaded_files:
                                   ))
                               else:
                                   st.warning(f"No valid difference data for {metric} between {reference_file} and {file_name}")
+                      
                   else:
-                      st.warning(f"No common timestamps found between {reference_file} and {file_name}")
+                      st.warning(f"Could not align timestamps between {reference_file} and {file_name} within 5 minute tolerance")
                   
           # Add zero line for reference
           fig_diff.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
