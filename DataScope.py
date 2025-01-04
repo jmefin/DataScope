@@ -106,7 +106,7 @@ with st.sidebar.expander("Readme"):
 
 # Add version info
 st.sidebar.markdown("---")
-st.sidebar.markdown("**Version:** 0.0.1")
+st.sidebar.markdown("**Version:** 0.0.2")
 
 # Initialize database and analysis managers in session state
 if 'db_manager' not in st.session_state:
