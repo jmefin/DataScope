@@ -85,6 +85,10 @@ st.set_page_config(layout="wide")
 st.title("DataScope")
 st.sidebar.header("Configuration")
 
+# Add version info
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Version:** 0.0.1")
+
 # Initialize database and analysis managers in session state
 if 'db_manager' not in st.session_state:
   st.session_state.db_manager = DatabaseManager()
