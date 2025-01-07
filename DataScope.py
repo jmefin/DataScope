@@ -82,6 +82,7 @@ def setup_limit_values(metric, defaults, key_suffix=""):
 
 # Set up Streamlit app
 st.set_page_config(layout="wide")
+#TODO st.sidebar.image("DataScopeLogo.png", use_container_width=True)
 st.title("DataScope")
 st.sidebar.header("Configuration")
 
