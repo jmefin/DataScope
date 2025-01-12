@@ -384,15 +384,57 @@ if st.session_state.uploaded_files:
           index=0,
           key="stats_level_main"
       )
+      
+      # Time range selection
+      use_time_range = st.sidebar.checkbox(
+          "Use Analysis Time Range",
+          value=False,
+          key="use_time_range_main"
+      )
+      
+      if use_time_range:
+          st.sidebar.markdown("**Analysis Time Range**")
+          col1, col2 = st.sidebar.columns(2)
+          with col1:
+              start_time = st.time_input(
+                  "Start time",
+                  value=datetime.strptime("08:00", "%H:%M").time(),
+                  key="start_time_main"
+              )
+          with col2:
+              end_time = st.time_input(
+                  "End time", 
+                  value=datetime.strptime("17:00", "%H:%M").time(),
+                  key="end_time_main"
+              )
+          
+          # Set the time range in analysis
+          st.session_state.analysis.set_analysis_time_range(
+              start_time.strftime("%H:%M"),
+              end_time.strftime("%H:%M")
+          )
+      else:
+          # Clear time range when disabled
+          st.session_state.analysis.set_analysis_time_range(None, None)
+      
       exclude_weekends = st.sidebar.checkbox(
           "Exclude weekends from analysis",
           value=False,
           key="exclude_weekends_main"
       )
+      # Set weekend exclusion in analysis
+      st.session_state.analysis.set_exclude_weekends(exclude_weekends)
       show_stats = st.checkbox("Show Statistical Summary", key="show_stats_main")
       
       if show_stats:
           st.subheader("Statistical Summary")
+          
+          # Add checkbox for percentage statistics
+          show_percentages = st.checkbox(
+              "Show percentage statistics",
+              value=True,
+              key="show_percentages_main"
+          )
           
           if stats_level == "Basic":
               # Filter out weekends if option is enabled
@@ -400,25 +442,93 @@ if st.session_state.uploaded_files:
               if exclude_weekends:
                   filtered_data = plot_data[plot_data['timestamp'].dt.weekday < 5]
                   
-              # Simplified basic statistics showing only min, max, and average
+              # Get basic statistics
               basic_stats = st.session_state.analysis.calculate_basic_stats(
                   selected_dataset_ids,
                   metrics_to_process,
                   filtered_data=filtered_data
               )
               
-              # Create a simplified DataFrame with only min, max, and average
-              simplified_stats = {}
+              # Create statistics DataFrame
+              stats_data = {}
               for metric, stats in basic_stats.items():
-                  simplified_stats[metric] = {
+                  stats_data[metric] = {
                       'min': stats['min'],
                       'max': stats['max'],
                       'average': stats['mean']
                   }
+                  
+                  # Add percentage statistics if enabled
+                  if show_percentages and metric in DEFAULT_LIMITS:
+                      limits = DEFAULT_LIMITS[metric]
+                      if limits['target_low'] is not None and limits['target_high'] is not None:
+                          # Calculate percentages for each zone
+                          optimal = ((filtered_data[metric] >= limits['target_low']) & 
+                                   (filtered_data[metric] <= limits['target_high'])).mean() * 100
+                          
+                          warning_low = ((filtered_data[metric] >= limits['alert_low']) & 
+                                       (filtered_data[metric] < limits['target_low'])).mean() * 100
+                          warning_high = ((filtered_data[metric] > limits['target_high']) & 
+                                        (filtered_data[metric] <= limits['alert_high'])).mean() * 100
+                          warning = warning_low + warning_high
+                          
+                          critical_low = (filtered_data[metric] < limits['alert_low']).mean() * 100
+                          critical_high = (filtered_data[metric] > limits['alert_high']).mean() * 100
+                          critical = critical_low + critical_high
+                          
+                          stats_data[metric].update({
+                              'Optimal Zone %': optimal,
+                              'Warning Zone %': warning,
+                              'Critical Zone %': critical
+                          })
               
-              # Display the simplified statistics
-              st.write("Basic Statistics (min, max, average):")
-              st.write(pd.DataFrame(simplified_stats).round(2))
+              # Display statistics and donut charts
+              st.write("Statistics:")
+              st.write(pd.DataFrame(stats_data).round(2))
+              
+              # Create columns for donut charts
+              num_metrics = len([m for m in stats_data if 'Optimal Zone %' in stats_data[m]])
+              if num_metrics > 0:
+                  st.write("Zone Distribution:")
+                  chart_cols = st.columns(num_metrics)
+                  
+                  for idx, (metric, stats) in enumerate(stats_data.items()):
+                      if 'Optimal Zone %' in stats:
+                          with chart_cols[idx]:
+                              # Create donut chart
+                              labels = ['Optimal', 'Warning', 'Critical']
+                              values = [
+                                  stats['Optimal Zone %'],
+                                  stats['Warning Zone %'], 
+                                  stats['Critical Zone %']
+                              ]
+                              
+                              fig = go.Figure(data=[go.Pie(
+                                  labels=labels,
+                                  values=values,
+                                  hole=0.5,
+                                  marker_colors=['#00cc96', '#ffa15a', '#ef553b']
+                              )])
+                              
+                              fig.update_traces(
+                                  textposition='inside',
+                                  textinfo='percent+label',
+                                  hoverinfo='label+percent+value',
+                                  textfont_size=14
+                              )
+                              
+                              # Add centered title above the chart
+                              st.markdown(f"<h4 style='text-align: center;'>{metric}</h4>", 
+                                        unsafe_allow_html=True)
+                              
+                              # Update chart layout without title
+                              fig.update_layout(
+                                  showlegend=False,
+                                  margin=dict(t=10, b=10, l=10, r=10),
+                                  height=200
+                              )
+                              
+                              st.plotly_chart(fig, use_container_width=True, key=f"donut_chart_{metric}")
           
           else:  # Advanced
               # Correlation analysis

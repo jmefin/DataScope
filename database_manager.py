@@ -55,6 +55,16 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_measurements_metric 
             ON measurements(metric_type)
         """)
+        
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS metric_thresholds (
+                metric_type TEXT PRIMARY KEY,
+                optimal_min REAL,
+                optimal_max REAL,
+                alarm_min REAL,
+                alarm_max REAL
+            )
+        """)
 
     def store_dataset(self, filename: str, df: pd.DataFrame) -> int:
         cursor = self.conn.cursor()
@@ -94,6 +104,35 @@ class DatabaseManager:
         cursor = self.conn.cursor()
         cursor.execute("SELECT DISTINCT metric_type FROM measurements")
         return [row[0] for row in cursor.fetchall()]
+
+    def set_metric_thresholds(self, metric_type: str, 
+                            optimal_min: float, optimal_max: float,
+                            alarm_min: float, alarm_max: float):
+        """Set thresholds for a metric type"""
+        self.conn.execute("""
+            INSERT OR REPLACE INTO metric_thresholds 
+            (metric_type, optimal_min, optimal_max, alarm_min, alarm_max)
+            VALUES (?, ?, ?, ?, ?)
+        """, (metric_type, optimal_min, optimal_max, alarm_min, alarm_max))
+        self.conn.commit()
+
+    def get_metric_thresholds(self, metric_type: str) -> dict:
+        """Get thresholds for a metric type"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT optimal_min, optimal_max, alarm_min, alarm_max
+            FROM metric_thresholds
+            WHERE metric_type = ?
+        """, (metric_type,))
+        result = cursor.fetchone()
+        if result:
+            return {
+                'optimal_min': result[0],
+                'optimal_max': result[1],
+                'alarm_min': result[2],
+                'alarm_max': result[3]
+            }
+        return None
 
     def get_dataset_data(self, dataset_ids: list, metrics: list) -> pd.DataFrame:
         placeholders = ','.join('?' * len(dataset_ids))
