@@ -1,5 +1,6 @@
 import sqlite3
 import pandas as pd
+import numpy as np
 from datetime import datetime
 import threading
 
@@ -59,8 +60,8 @@ class DatabaseManager:
         cursor = self.conn.cursor()
         
         # Convert datetime to ISO format string
-        start_time = df['dt'].min().isoformat()
-        end_time = df['dt'].max().isoformat()
+        start_time = df['timestamp'].min().isoformat()
+        end_time = df['timestamp'].max().isoformat()
         
         cursor.execute("""
             INSERT INTO datasets (filename, start_time, end_time)
@@ -71,16 +72,16 @@ class DatabaseManager:
         
         # Convert DataFrame to format suitable for measurements table
         data_to_insert = []
-        for column in df.columns:
-            if column != 'dt':
-                for _, row in df[['dt', column]].iterrows():
-                    if pd.notna(row[column]):  # Skip NaN values
-                        data_to_insert.append((
-                            dataset_id,
-                            row['dt'].isoformat(),  # Convert datetime to ISO format string
-                            column,
-                            float(row[column])
-                        ))
+        numeric_columns = df.select_dtypes(include=[np.number]).columns
+        for column in numeric_columns:
+            for _, row in df[['timestamp', column]].iterrows():
+                if pd.notna(row[column]):  # Skip NaN values
+                    data_to_insert.append((
+                        dataset_id,
+                        row['timestamp'].isoformat(),  # Convert datetime to ISO format string
+                        column,
+                        float(row[column])
+                    ))
         
         cursor.executemany("""
             INSERT INTO measurements (dataset_id, timestamp, metric_type, value)

@@ -7,8 +7,8 @@ class AdvancedAnalysis:
     def __init__(self, db_manager):
         self.db_manager = db_manager
 
-    def calculate_basic_stats(self, dataset_ids: list, metrics: list) -> Dict:
-        data = self.db_manager.get_dataset_data(dataset_ids, metrics)
+    def calculate_basic_stats(self, dataset_ids: list, metrics: list, filtered_data: pd.DataFrame = None) -> Dict:
+        data = filtered_data if filtered_data is not None else self.db_manager.get_dataset_data(dataset_ids, metrics)
         stats_dict = {}
         
         for metric in metrics:

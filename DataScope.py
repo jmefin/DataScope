@@ -127,7 +127,10 @@ if uploaded_files:
               tmp_file.write(uploaded_file.getvalue())
               
               df = pd.read_csv(tmp_file.name, na_values=[''])
-              df['dt'] = pd.to_datetime(df['dt'], utc=True)
+              df['timestamp'] = pd.to_datetime(df['dt'], utc=True)
+              
+              # Add weekend indicator (True for Saturday and Sunday)
+              df['is_weekend'] = df['timestamp'].dt.dayofweek >= 5
               
               dataset_id = st.session_state.db_manager.store_dataset(file_name, df)
               st.session_state.uploaded_files[file_name] = dataset_id
@@ -216,6 +219,11 @@ if st.session_state.uploaded_files:
 
   # Plot settings
   st.sidebar.subheader("Plot Settings")
+  show_weekends = st.sidebar.checkbox(
+      "Highlight weekends",
+      value=False,
+      key="show_weekends_main"
+  )
   plot_height = st.sidebar.slider(
       'Plot height',
       min_value=300,
@@ -284,6 +292,22 @@ if st.session_state.uploaded_files:
                               "Value: %{y:.2f}<br>" +
                               "Time: %{x}<extra></extra>"
               ))
+
+          # Add weekend markers if enabled
+          if show_weekends:
+              weekend_starts = plot_data[plot_data['timestamp'].dt.weekday == 5]['timestamp'].dt.floor('D').unique()
+              weekend_ends = weekend_starts + pd.Timedelta(days=2)
+              
+              # Add weekend shading using vrect instead of vlines
+              for start, end in zip(weekend_starts, weekend_ends):
+                  fig.add_vrect(
+                      x0=start,
+                      x1=end,
+                      fillcolor="rgba(128, 128, 128, 0.1)",
+                      layer="below",
+                      line_width=0,
+                      showlegend=False
+                  )
 
       # Add limit lines and target areas
       if limit_values and len(fig.data) > 0:
@@ -360,16 +384,27 @@ if st.session_state.uploaded_files:
           index=0,
           key="stats_level_main"
       )
+      exclude_weekends = st.sidebar.checkbox(
+          "Exclude weekends from analysis",
+          value=False,
+          key="exclude_weekends_main"
+      )
       show_stats = st.checkbox("Show Statistical Summary", key="show_stats_main")
       
       if show_stats:
           st.subheader("Statistical Summary")
           
           if stats_level == "Basic":
+              # Filter out weekends if option is enabled
+              filtered_data = plot_data
+              if exclude_weekends:
+                  filtered_data = plot_data[plot_data['timestamp'].dt.weekday < 5]
+                  
               # Simplified basic statistics showing only min, max, and average
               basic_stats = st.session_state.analysis.calculate_basic_stats(
                   selected_dataset_ids,
-                  metrics_to_process
+                  metrics_to_process,
+                  filtered_data=filtered_data
               )
               
               # Create a simplified DataFrame with only min, max, and average
@@ -435,9 +470,15 @@ if st.session_state.uploaded_files:
               
               # Full statistics (replacing Trend analysis)
               st.subheader("Detailed Statistics")
+              # Filter out weekends if option is enabled
+              filtered_data = plot_data
+              if exclude_weekends:
+                  filtered_data = plot_data[plot_data['timestamp'].dt.weekday < 5]
+                  
               full_stats = st.session_state.analysis.calculate_basic_stats(
                   selected_dataset_ids,
-                  metrics_to_process
+                  metrics_to_process,
+                  filtered_data=filtered_data
               )
               for metric, stats in full_stats.items():
                   st.write(f"Detailed statistics for {metric}:")
