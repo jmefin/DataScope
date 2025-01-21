@@ -8,15 +8,15 @@ import time
 import numpy as np
 from datetime import datetime, timedelta
 from database_manager import DatabaseManager
-from analysis import AdvancedAnalysis
+from analysis import AdvancedAnalysis, ParticleAnalysis
 
 # Default metric limits and target ranges
 DEFAULT_LIMITS = {
-  'temperature': {'target_low': 20.5, 'target_high': 26.0, 'alert_low': 20.0, 'alert_high': 27.0},
-  'co2': {'target_low': 0, 'target_high': 750, 'alert_low': None, 'alert_high': 950},
+  'temperature': {'target_low': 19, 'target_high': 21.0, 'alert_low': 18.0, 'alert_high': 24.0},
+  'co2': {'target_low': 350, 'target_high': 750, 'alert_low': None, 'alert_high': 950},
   'humidity': {'target_low': 25, 'target_high': 60, 'alert_low': 15, 'alert_high': 75},
-  'pm2p5': {'target_low': 0, 'target_high': 10, 'alert_low': None, 'alert_high': 25},
-  'tvoc': {'target_low': 0, 'target_high': 250, 'alert_low': None, 'alert_high': 750},
+  'pm2p5': {'target_low': 0, 'target_high': 25, 'alert_low': None, 'alert_high': 25},
+  'tvoc': {'target_low': 0, 'target_high': 200, 'alert_low': None, 'alert_high': 700},
   'laeqx': {'target_low': 0, 'target_high': 53, 'alert_low': None, 'alert_high': 58}
 }
 
@@ -267,18 +267,33 @@ if st.session_state.uploaded_files:
           if short_name.isdigit():
               short_name = short_name[-4:]
           
+          # Process data for plotting - use local variable to avoid shadowing
+          processed_data = file_data.copy()
+          
+          # Identify PM metrics
+          pm_metrics = [m for m in primary_metrics if m.startswith('pm')]
+          other_metrics = [m for m in primary_metrics if not m.startswith('pm')]
+          
+          # Forward fill PM metrics
+          if pm_metrics:
+              processed_data[pm_metrics] = processed_data[pm_metrics].ffill()
+          
           # Primary metrics
           for metric in primary_metrics:
-              if metric in file_data.columns:
-                  fig.add_trace(go.Scatter(
-                      x=file_data['timestamp'],
-                      y=file_data[metric],
-                      mode='lines',
-                      name=f"{short_name} - {metric}",
-                      hovertemplate=f"<b>{short_name} - {metric}</b><br>" +
-                                  "Value: %{y:.2f}<br>" +
-                                  "Time: %{x}<extra></extra>"
-                  ))
+              if metric in processed_data.columns:
+                  # Filter out NaN values for this specific metric
+                  metric_data = processed_data[['timestamp', metric]].dropna(subset=[metric])
+                  
+                  if not metric_data.empty:
+                      fig.add_trace(go.Scatter(
+                          x=metric_data['timestamp'],
+                          y=metric_data[metric],
+                          mode='lines',
+                          name=f"{short_name} - {metric}",
+                          hovertemplate=f"<b>{short_name} - {metric}</b><br>" +
+                                      "Value: %{y:.2f}<br>" +
+                                      "Time: %{x}<extra></extra>"
+                      ))
           
           # Secondary metric if enabled
           if use_secondary_axis and secondary_metric and secondary_metric in file_data.columns:
@@ -295,7 +310,7 @@ if st.session_state.uploaded_files:
 
           # Add weekend markers if enabled
           if show_weekends:
-              weekend_starts = plot_data[plot_data['timestamp'].dt.weekday == 5]['timestamp'].dt.floor('D').unique()
+              weekend_starts = processed_data[processed_data['timestamp'].dt.weekday == 5]['timestamp'].dt.floor('D').unique()
               weekend_ends = weekend_starts + pd.Timedelta(days=2)
               
               # Add weekend shading using vrect instead of vlines
@@ -380,7 +395,7 @@ if st.session_state.uploaded_files:
       st.sidebar.subheader("Statistical Analysis")
       stats_level = st.sidebar.radio(
           "Select statistics level:",
-          ["Basic", "Advanced"],
+          ["Basic", "Advanced", "Particle"],
           index=0,
           key="stats_level_main"
       )
@@ -495,42 +510,23 @@ if st.session_state.uploaded_files:
                   for idx, (metric, stats) in enumerate(stats_data.items()):
                       if 'Optimal Zone %' in stats:
                           with chart_cols[idx]:
-                              # Create donut chart
-                              labels = ['Optimal', 'Warning', 'Critical']
-                              values = [
-                                  stats['Optimal Zone %'],
-                                  stats['Warning Zone %'], 
-                                  stats['Critical Zone %']
-                              ]
+                              # Create circular meter
+                              green = stats['Optimal Zone %']
+                              yellow = stats['Warning Zone %']
+                              red = stats['Critical Zone %']
                               
-                              fig = go.Figure(data=[go.Pie(
-                                  labels=labels,
-                                  values=values,
-                                  hole=0.5,
-                                  marker_colors=['#00cc96', '#ffa15a', '#ef553b']
-                              )])
-                              
-                              fig.update_traces(
-                                  textposition='inside',
-                                  textinfo='percent+label',
-                                  hoverinfo='label+percent+value',
-                                  textfont_size=14
-                              )
-                              
-                              # Add centered title above the chart
-                              st.markdown(f"<h4 style='text-align: center;'>{metric}</h4>", 
-                                        unsafe_allow_html=True)
-                              
-                              # Update chart layout without title
-                              fig.update_layout(
-                                  showlegend=False,
-                                  margin=dict(t=10, b=10, l=10, r=10),
+                              # Render meter component with title/metric
+                              from components.meter_component import meter_component
+                              meter_component(
+                                  green, 
+                                  yellow, 
+                                  red, 
+                                  metrics=f"<h3 style='text-align: center; margin: 0 0 10px; font-size: 1.2em;'>{metric}</h3>",
+                                  width=200, 
                                   height=200
                               )
-                              
-                              st.plotly_chart(fig, use_container_width=True, key=f"donut_chart_{metric}")
           
-          else:  # Advanced
+          elif stats_level == "Advanced":
               # Correlation analysis
               if len(metrics_to_process) > 1:
                   st.subheader("Correlation Analysis")
@@ -593,6 +589,45 @@ if st.session_state.uploaded_files:
               for metric, stats in full_stats.items():
                   st.write(f"Detailed statistics for {metric}:")
                   st.write(pd.DataFrame([stats]).round(2))
+          
+          else:  # Particle
+              # Create ParticleAnalysis instance
+              particle_analysis = ParticleAnalysis(st.session_state.db_manager)
+              
+              # Filter data based on time range and weekends
+              filtered_data = plot_data
+              
+              # Apply time range filter if enabled
+              if use_time_range:
+                  start_dt = datetime.combine(filtered_data['timestamp'].min().date(), start_time)
+                  end_dt = datetime.combine(filtered_data['timestamp'].min().date(), end_time)
+                  time_mask = (filtered_data['timestamp'].dt.time >= start_time) & \
+                            (filtered_data['timestamp'].dt.time <= end_time)
+                  filtered_data = filtered_data[time_mask]
+              
+              # Exclude weekends if option is enabled
+              if exclude_weekends:
+                  filtered_data = filtered_data[filtered_data['timestamp'].dt.weekday < 5]
+              
+              # Get PM metrics
+              pm_metrics = [m for m in metrics_to_process if m.startswith('pm')]
+              
+              if pm_metrics:
+                  st.subheader("Particle Analysis")
+                  # Calculate PM averages in mg/m³ using filtered data
+                  pm_averages = particle_analysis.calculate_pm_average(
+                      selected_dataset_ids,
+                      pm_metrics,
+                      filtered_data=filtered_data
+                  )
+                  
+                  # Create DataFrame with averages
+                  averages_df = pd.DataFrame([pm_averages]).T
+                  averages_df.columns = ['Average (mg/m³)']
+                  
+                  # Display formatted averages
+                  st.write("Average PM concentrations:")
+                  st.dataframe(averages_df.style.format("{:.3f}"))
 
       # Difference plot
       if show_differences and difference_metrics and len(selected_files) >= 2:
@@ -600,19 +635,39 @@ if st.session_state.uploaded_files:
           
           fig_diff = go.Figure()
           
-          # Convert reference data to hourly averages
+          # Convert reference data to hourly values
           reference_data = plot_data[plot_data['filename'] == reference_file].copy()
           reference_data['hour'] = pd.to_datetime(reference_data['timestamp']).dt.floor('h')
           numeric_columns = reference_data.select_dtypes(include=[np.number]).columns
-          reference_data = reference_data.groupby('hour')[numeric_columns].mean().reset_index()
+          
+          # Separate PM metrics from other metrics
+          pm_metrics = [col for col in numeric_columns if col.startswith('pm')]
+          other_metrics = [col for col in numeric_columns if col not in pm_metrics]
+          
+          # For PM metrics: forward fill to carry last valid measurement
+          reference_data[pm_metrics] = reference_data[pm_metrics].ffill()
+          
+          # Group by hour - mean for other metrics, last for PM metrics
+          grouped = reference_data.groupby('hour')
+          reference_data = pd.concat([
+              grouped[other_metrics].mean(),
+              grouped[pm_metrics].last()
+          ], axis=1).reset_index()
           reference_data = reference_data.rename(columns={'hour': 'timestamp'})
           
           for file_name in selected_files:
               if file_name != reference_file:
-                  # Convert comparison data to hourly averages
+                  # Convert comparison data to hourly values
                   comparison_data = plot_data[plot_data['filename'] == file_name].copy()
                   comparison_data['hour'] = pd.to_datetime(comparison_data['timestamp']).dt.floor('h')
-                  comparison_data = comparison_data.groupby('hour')[numeric_columns].mean().reset_index()
+                  
+                  # Apply same processing as reference data
+                  comparison_data[pm_metrics] = comparison_data[pm_metrics].ffill()
+                  grouped = comparison_data.groupby('hour')
+                  comparison_data = pd.concat([
+                      grouped[other_metrics].mean(),
+                      grouped[pm_metrics].last()
+                  ], axis=1).reset_index()
                   comparison_data = comparison_data.rename(columns={'hour': 'timestamp'})
                   
                   # Create merged dataframe with nearest timestamp matching
