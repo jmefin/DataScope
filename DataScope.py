@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from components.meter_component import meter_component
 import plotly.graph_objects as go
 import tempfile
 import base64
@@ -515,14 +516,13 @@ if st.session_state.uploaded_files:
                               yellow = stats['Warning Zone %']
                               red = stats['Critical Zone %']
                               
-                              # Render meter component with title/metric
-                              from components.meter_component import meter_component
+                              # Create circular meter visualization
                               meter_component(
-                                  green, 
-                                  yellow, 
-                                  red, 
-                                  metrics=f"<h3 style='text-align: center; margin: 0 0 10px; font-size: 1.2em;'>{metric}</h3>",
-                                  width=200, 
+                                  green=green,
+                                  yellow=yellow,
+                                  red=red,
+                                  metrics=f"<b>{metric}</b>",
+                                  width=200,
                                   height=200
                               )
           
