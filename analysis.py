@@ -48,21 +48,46 @@ class AdvancedAnalysis:
         data = self._filter_by_time_range(data)
         stats_dict = {}
         
+        # Identify PM metrics
+        pm_metrics = [m for m in metrics if m.startswith('pm')]
+        other_metrics = [m for m in metrics if not m.startswith('pm')]
+        
+        # Forward fill PM metrics
+        if pm_metrics:
+            data[pm_metrics] = data[pm_metrics].ffill()
+        
         for metric in metrics:
             if metric in data.columns:
                 series = data[metric].dropna()
-                stats_dict[metric] = {
-                    'count': len(series),
-                    'mean': series.mean(),
-                    'std': series.std(),
-                    'min': series.min(),
-                    '25%': series.quantile(0.25),
-                    'median': series.median(),
-                    '75%': series.quantile(0.75),
-                    'max': series.max(),
-                    'range': series.max() - series.min(),
-                    'cv%': (series.std() / series.mean() * 100) if series.mean() != 0 else np.nan
-                }
+                
+                # Use last value for PM metrics in range statistics
+                if metric in pm_metrics:
+                    stats_dict[metric] = {
+                        'count': len(series),
+                        'mean': series.mean(),
+                        'std': series.std(),
+                        'min': series.min(),
+                        '25%': series.quantile(0.25),
+                        'median': series.median(),
+                        '75%': series.quantile(0.75),
+                        'max': series.max(),
+                        'range': series.max() - series.min(),
+                        'cv%': (series.std() / series.mean() * 100) if series.mean() != 0 else np.nan,
+                        'last': series.iloc[-1] if len(series) > 0 else np.nan
+                    }
+                else:
+                    stats_dict[metric] = {
+                        'count': len(series),
+                        'mean': series.mean(),
+                        'std': series.std(),
+                        'min': series.min(),
+                        '25%': series.quantile(0.25),
+                        'median': series.median(),
+                        '75%': series.quantile(0.75),
+                        'max': series.max(),
+                        'range': series.max() - series.min(),
+                        'cv%': (series.std() / series.mean() * 100) if series.mean() != 0 else np.nan
+                    }
         return stats_dict
 
     def calculate_correlations(self, dataset_ids: list, metrics: list) -> pd.DataFrame:
@@ -138,3 +163,42 @@ class AdvancedAnalysis:
         correlations = [data[metric1].corr(data[metric2].shift(lag)) for lag in lags]
         
         return lags, correlations
+
+
+class ParticleAnalysis(AdvancedAnalysis):
+    def __init__(self, db_manager):
+        super().__init__(db_manager)
+        
+    def calculate_pm_average(self, dataset_ids: list, pm_metrics: list, filtered_data: pd.DataFrame = None) -> Dict[str, float]:
+        """Calculate average PM values in mg/m³ for selected metrics"""
+        if not pm_metrics:
+            return {}
+            
+        # Use provided filtered data or get new data
+        if filtered_data is None:
+            data = self.db_manager.get_dataset_data(dataset_ids, pm_metrics)
+            filtered_data = self._filter_by_time_range(data)
+        
+        # Forward fill PM values
+        filtered_data[pm_metrics] = filtered_data[pm_metrics].ffill()
+        
+        # Calculate averages in mg/m³
+        averages = {}
+        total_sum = 0.0
+        valid_metrics = 0
+        
+        for metric in pm_metrics:
+            if metric in filtered_data.columns:
+                series = filtered_data[metric].dropna()
+                if len(series) > 0:
+                    # Convert from µg/m³ to mg/m³
+                    avg = series.mean() / 1000
+                    averages[metric] = avg
+                    total_sum += avg
+                    valid_metrics += 1
+                    
+        # Calculate total average if we have valid metrics
+        if valid_metrics > 0:
+            averages['total_average'] = total_sum / valid_metrics
+            
+        return averages
